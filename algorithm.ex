@@ -40,11 +40,34 @@ defmodule ARC.Algorithm do
 
         state
 
+      match?({:ok, _}, LRU.get(state.t1, key)) ->
+        state = %{
+          state
+          | t1: LRU.delete(state.t1, key),
+            t2: LRU.put(state.t2, key, value)
+        }
+
+        state
+
       match?({:ok, _}, LRU.get(state.t2, key)) ->
         %{state | t2: LRU.put(state.t2, key, value)}
 
       match?({:ok, _}, LRU.get(state.b1, key)) ->
-        nil
+        state = adjust_parameter_up(state, state.b1, state.b2)
+        state = %{state | b1: LRU.delete(state.b1, key)}
+        state = replace(state, key)
+
+        %{state | t2: LRU.put(state.t2, key, value)}
+
+      match?({:ok, _}, LRU.get(state.b2, key)) ->
+        state = adjust_parameter_down(state, state.b1, state.b2)
+        state = %{state | b2: LRU.delete(state.b2, key)}
+        state = replace(state, key)
+
+        %{state | t2: LRU.put(state.t2, key, value)}
+
+      true ->
+        insert_new(state, key, value)
     end
   end
 
