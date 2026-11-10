@@ -1,5 +1,6 @@
 defmodule ARC.State do
   defstruct capacity: 100,
+            request_count: 0,
             p: 0,
             t1: %ARC.LRU{},
             t2: %ARC.LRU{},

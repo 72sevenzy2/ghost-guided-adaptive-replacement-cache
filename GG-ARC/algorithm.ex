@@ -2,6 +2,8 @@ defmodule ARC.Algorithm do
   alias ARC.{LRU, State}
 
   def get(state, key) do
+    state = %{state | request_count: state.request_count + 1}
+
     cond do
       match?({:ok, _}, LRU.get(state.t1, key)) ->
         {:ok, value} = LRU.get(state.t1, key)
@@ -44,7 +46,21 @@ defmodule ARC.Algorithm do
         %{state | t2: LRU.put(state.t2, key, value)}
 
       match?({:ok, _}, LRU.get(state.b1, key)) ->
-        nil
+        state = adjust_parameter_up(state, state.b1, state.b2)
+        state = %{state | b1: LRU.delete(state.b1, key)}
+        state = replace(state, key)
+
+        %{state | t2: LRU.put(state.t2, key, value)}
+
+      match?({:ok, _}, LRU.get(state.b2, key)) ->
+        state = adjust_parameter_down(state, state.b1, state.b2)
+        state = %{state | b2: LRU.delete(state.b2, key)}
+        state = replace(state, key)
+
+        %{state | t2: LRU.put(state.t2, key, value)}
+
+      true ->
+        insert_new(state, key, value)
     end
   end
 
@@ -79,7 +95,7 @@ defmodule ARC.Algorithm do
   end
 
   defp replace(state, incoming_key) do
-    t1_size = LRU.get(state.t1)
+    t1_size = LRU.size(state.t1)
 
     evict_t1? =
       t1_size > 0 and
@@ -145,4 +161,3 @@ defmodule ARC.Algorithm do
     }
   end
 end
-
