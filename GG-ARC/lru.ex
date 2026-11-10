@@ -9,6 +9,19 @@ defmodule GGARC.LRU do
 
   def empty?(list), do: size(list) == 0
 
+  def entries(%__MODULE__{items: items}) do
+    Enum.map(items, fn {key, {value, _index}} ->
+      {key, value}
+    end)
+  end
+
+  def fetch(%__MODULE__{items: items}, key) do
+    case Map.fetch(items, key) do
+      {:ok, {value, _index}} -> {:ok, value}
+      :error -> :miss
+    end
+  end
+
   def get(%__MODULE__{items: items}, key) do
     case Map.fetch(items, key) do
       {:ok, {value, _}} -> {:ok, value}
