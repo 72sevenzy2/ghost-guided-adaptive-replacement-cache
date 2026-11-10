@@ -1,7 +1,7 @@
-defmodule ARC.Server do
+defmodule GGARC.Server do
   use GenServer
 
-  alias ARC.{Algorithm, State}
+  alias GGARC.{Algorithm, State}
 
   def start_link(opts) do
     capacity = Keyword.fetch!(opts, :capacity)

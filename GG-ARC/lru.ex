@@ -1,4 +1,4 @@
-defmodule ARC.LRU do
+defmodule GGARC.LRU do
   defstruct items: %{},
             order: :gb_trees.empty(),
             next: 0

@@ -1,5 +1,5 @@
-defmodule ARC.Algorithm do
-  alias ARC.{LRU, State}
+defmodule GGARC.Algorithm do
+  alias GGARC.{LRU, State}
 
   def get(state, key) do
     state = %{state | request_count: state.request_count + 1}

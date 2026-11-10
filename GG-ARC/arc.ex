@@ -1,5 +1,5 @@
-defmodule ARC.Cache do
-  alias ARC.Server
+defmodule GGARC.Cache do
+  alias GGARC.Server
 
   def start_link(opts) do
     Server.start_link(opts)
