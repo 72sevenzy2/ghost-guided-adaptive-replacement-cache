@@ -1,5 +1,5 @@
 defmodule GGARC.Algorithm do
-  alias GGARC.{LRU, State, Protection}
+  alias GGARC.{LRU, State, Protection, CostModel}
 
   def get(state, key) do
     state = %{state | request_count: state.request_count + 1}
@@ -102,14 +102,40 @@ defmodule GGARC.Algorithm do
         (t1_size > state.p or (LRU.fetch(state.b2, incoming_key) != :miss and t1_size == state.p))
 
     if evict_t1? do
-      {{key, _value}, t1} = LRU.pop_lru(state.t1)
-      %{state | t1: t1, b1: LRU.put(state.b1, key, true)}
+      {key, entry} = select_victim(state, state.t1, state.w1)
+
+      ghost =
+        %GGARC.GhostEntry{
+          latency_us: entry.latency_us,
+          memory_bytes: entry.memory_bytes,
+          protection: entry.protection,
+          protection_at: entry.protection_at
+        }
+
+      %{
+        state
+        | t1: LRU.delete(state.t1, key),
+          b1: LRU.put(state.b1, key, ghost)
+      }
     else
       if LRU.empty?(state.t2) do
         state
       else
-        {{key, _value}, t2} = LRU.pop_lru(state.t2)
-        %{state | t2: t2, b2: LRU.put(state.b2, key, true)}
+        {key, entry} = select_victim(state, state.t2, state.w2)
+
+        ghost =
+          %GGARC.GhostEntry{
+            latency_us: entry.latency_us,
+            memory_bytes: entry.memory_bytes,
+            protection: entry.protection,
+            protection_at: entry.protection_at
+          }
+
+        %{
+          state
+          | t2: LRU.delete(state.t2, key),
+            b2: LRU.put(state.t2, key, ghost)
+        }
       end
     end
   end
@@ -124,6 +150,8 @@ defmodule GGARC.Algorithm do
           state.request_count,
           state.protection_half_life
         )
+
+      GGARC.CostModel.score(entry, weights, state, protection)
     end)
   end
 
