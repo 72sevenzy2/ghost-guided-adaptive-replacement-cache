@@ -26,8 +26,8 @@ defmodule GGARC.Server do
   end
 
   @impl true
-  def handle_call({:put, key, value}, _from, state) do
-    state = Algorithm.put(state, key, value)
+  def handle_call({:put, key, value, metadata}, _from, state) do
+    state = Algorithm.put(state, key, value, metadata)
 
     {:reply, :ok, state}
   end

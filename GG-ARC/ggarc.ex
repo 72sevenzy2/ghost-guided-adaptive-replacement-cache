@@ -9,8 +9,8 @@ defmodule GGARC.Cache do
     GenServer.call(server, {:get, key})
   end
 
-  def put(server, key, value) do
-    GenServer.call(server, {:put, key, value})
+  def put(server, key, value, metadata) do
+    GenServer.call(server, {:put, key, value, metadata})
   end
 
   def delete(server, key) do
