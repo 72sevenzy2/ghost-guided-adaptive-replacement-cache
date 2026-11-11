@@ -1,5 +1,5 @@
 defmodule GGARC.Algorithm do
-  alias GGARC.{LRU, State}
+  alias GGARC.{LRU, State, Protection}
 
   def get(state, key) do
     state = %{state | request_count: state.request_count + 1}
@@ -99,7 +99,7 @@ defmodule GGARC.Algorithm do
 
     evict_t1? =
       t1_size > 0 and
-        (t1_size > state.p or (LRU.get(state.b2, incoming_key) != :miss and t1_size == state.p))
+        (t1_size > state.p or (LRU.fetch(state.b2, incoming_key) != :miss and t1_size == state.p))
 
     if evict_t1? do
       {{key, _value}, t1} = LRU.pop_lru(state.t1)
@@ -112,6 +112,19 @@ defmodule GGARC.Algorithm do
         %{state | t2: t2, b2: LRU.put(state.b2, key, true)}
       end
     end
+  end
+
+  defp select_victim(state, list, weights) do
+    list
+    |> LRU.entries()
+    |> Enum.min_by(fn {_key, entry} ->
+      protection =
+        GGARC.Protection.effective(
+          entry,
+          state.request_count,
+          state.protection_half_life
+        )
+    end)
   end
 
   defp insert_new(state, key, value) do
