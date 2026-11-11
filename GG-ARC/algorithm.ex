@@ -74,6 +74,43 @@ defmodule GGARC.Algorithm do
     }
   end
 
+  defp adapt_weights(state, ghost, list) do
+    latency =
+      CostModel.normalise_latency(
+        ghost.latency_us,
+        state.latency_ref_us
+      )
+
+    memory =
+      CostModel.normalise_memory(
+        ghost.memory_bytes,
+        state.memory_ref_bytes
+      )
+
+    delta = latency - memory
+
+    weights =
+      case list do
+        :t1 -> state.w1
+        :t2 -> state.w2
+      end
+
+    new_latency =
+      (weights.latency + state.eta * delta)
+      |> max(0.1)
+      |> min(0.9)
+
+    updated_weights = %{
+      latency: new_latency,
+      memory: 1.0 - new_latency
+    }
+
+    case list do
+      :t1 -> %{state | w1: updated_weights}
+      :t2 -> %{state | w2: updated_weights}
+    end
+  end
+
   defp adjust_parameter_up(state, b1, b2) do
     delta =
       max(
