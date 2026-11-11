@@ -1,5 +1,5 @@
 defmodule GGARC.Algorithm do
-  alias GGARC.{LRU, State, Protection, CostModel}
+  alias GGARC.{LRU, State, Entry, GhostEntry, Protection, CostModel}
 
   def get(state, key) do
     state = %{state | request_count: state.request_count + 1}
@@ -31,37 +31,66 @@ defmodule GGARC.Algorithm do
     end
   end
 
-  def put(state, key, value) do
+  def put(state, key, value, metadata) do
+    latency = Map.fetch!(metadata, :latency_us)
+    memory = Map.fetch!(metadata, :memory_bytes)
+
     cond do
       match?({:ok, _}, LRU.get(state.t1, key)) ->
-        state = %{
+        {:ok, entry} = LRU.get(state.t1, key)
+        entry = %{entry | value: value}
+
+        %{
           state
           | t1: LRU.delete(state.t1, key),
-            t2: LRU.put(state.t2, key, value)
+            t2: LRU.put(state.t2, key, entry)
         }
 
-        state
-
       match?({:ok, _}, LRU.get(state.t2, key)) ->
-        %{state | t2: LRU.put(state.t2, key, value)}
+        {:ok, entry} = LRU.get(state.t2, key)
+
+        %{state | t2: LRU.put(state.t2, key(%{entry | value: value}))}
 
       match?({:ok, _}, LRU.get(state.b1, key)) ->
+        {:ok, ghost} = LRU.get(state.b1, key)
+
         state = adjust_parameter_up(state, state.b1, state.b2)
         state = %{state | b1: LRU.delete(state.b1, key)}
-        state = replace(state, key)
 
-        %{state | t2: LRU.put(state.t2, key, value)}
+        state = replace(state, key)
+        state = %{state | b1: LRU.delete(state.b1, key)}
+
+        entry = restore_entry(ghost, value, latency, memory, state)
+
+        %{state | t2: LRU.put(state.t2, key, entry)}
 
       match?({:ok, _}, LRU.get(state.b2, key)) ->
+        {:ok, ghost} = LRU.get(state.b2, key)
+
         state = adjust_parameter_down(state, state.b1, state.b2)
-        state = %{state | b2: LRU.delete(state.b2, key)}
+        state = adapt_weights(state, ghost, :t2)
+
         state = replace(state, key)
+        state = %{state | b2: LRU.delete(state.b2, key)}
+
+        entry = restore_entry(ghost, value, latency, memory, state)
 
         %{state | t2: LRU.put(state.t2, key, value)}
 
       true ->
-        insert_new(state, key, value)
+        insert_new(state, key, value, latency, memory)
     end
+  end
+
+  defp restore_entry(ghost, value, latency, memory, state) do
+    %Entry{
+      value: value,
+      latency_us: latency,
+      memory_bytes: memory,
+      protection: ghost.protection,
+      protection_at: ghost.protection_at
+    }
+    |> Protection.reinforce(state)
   end
 
   def delete(state, key) do
@@ -192,9 +221,12 @@ defmodule GGARC.Algorithm do
     end)
   end
 
-  defp insert_new(state, key, value) do
+  defp insert_new(state, key, value, latency, memory) do
     c = state.capacity
     l1_size = LRU.size(state.t1) + LRU.size(state.b1)
+
+    total_size =
+      LRU.size(state.t1) + LRU.size(t2) + LRU.size(b1) + LRU.size(b2)
 
     state =
       cond do
@@ -209,22 +241,30 @@ defmodule GGARC.Algorithm do
             %{state | t1: t1}
           end
 
-        LRU.size(state.t1) + LRU.size(state.t2) +
-          LRU.size(state.b1) + LRU.size(state.b2) >= c ->
-          if LRU.size(state.t1) + LRU.size(state.t2) +
-               LRU.size(state.b1) + LRU.size(state.b2) == 2 * c do
-            {{_key, _value}, b2} = LRU.pop_lru(state.b2)
+        l1_size < c and total_size >= c ->
+          state =
+            if total_size == 2 * c do
+              {{_key, _value}, b2} = LRU.pop_lru(state.b2)
+              %{state | b2: b2}
+            else
+              state
+            end
 
-            %{state | b2: b2}
-          else
-            state
-          end
+          replace(state, key)
 
         true ->
           state
       end
 
-    state = replace(state, key)
+    entry = %Entry{
+      value: value,
+      latency_us: latency,
+      memory_bytes: memory,
+      protection: 0.0,
+      protection_at: state.request_count
+    }
+
+    %{state | t1: LRU.put(state.t1, key, entry)}
   end
 
   def stats(state) do
