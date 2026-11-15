@@ -49,7 +49,7 @@ defmodule GGARC.Algorithm do
       match?({:ok, _}, LRU.get(state.t2, key)) ->
         {:ok, entry} = LRU.get(state.t2, key)
 
-        %{state | t2: LRU.put(state.t2, key(%{entry | value: value}))}
+        %{state | t2: LRU.put(state.t2, key, %{entry | value: value})}
 
       match?({:ok, _}, LRU.get(state.b1, key)) ->
         {:ok, ghost} = LRU.get(state.b1, key)
@@ -58,7 +58,6 @@ defmodule GGARC.Algorithm do
         state = %{state | b1: LRU.delete(state.b1, key)}
 
         state = replace(state, key)
-        state = %{state | b1: LRU.delete(state.b1, key)}
 
         entry = restore_entry(ghost, value, latency, memory, state)
 
@@ -224,9 +223,8 @@ defmodule GGARC.Algorithm do
   defp insert_new(state, key, value, latency, memory) do
     c = state.capacity
     l1_size = LRU.size(state.t1) + LRU.size(state.b1)
-
-    total_size =
-      LRU.size(state.t1) + LRU.size(t2) + LRU.size(b1) + LRU.size(b2)
+    resident_size = LRU.size(state.t1) + LRU.size(state.t2)
+    total_size = resident_size + LRU.size(state.b1) + LRU.size(state.b2)
 
     state =
       cond do
@@ -242,19 +240,18 @@ defmodule GGARC.Algorithm do
           end
 
         l1_size < c and total_size >= c ->
-          state =
-            if total_size == 2 * c do
-              {{_key, _value}, b2} = LRU.pop_lru(state.b2)
-              %{state | b2: b2}
-            else
-              state
-            end
-
-          replace(state, key)
+          if total_size == 2 * c do
+            {{_key, _value}, b2} = LRU.pop_lru(state.b2)
+            %{state | b2: b2}
+          else
+            state
+          end
 
         true ->
           state
       end
+
+    state = replace(state, key)
 
     entry = %Entry{
       value: value,
