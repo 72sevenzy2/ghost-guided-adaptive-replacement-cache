@@ -50,8 +50,8 @@ defmodule ARC.Algorithm do
 
       match?({:ok, _}, LRU.get(state.b2, key)) ->
         state = adjust_parameter_down(state, state.b1, state.b2)
-        state = %{state | b2: LRU.delete(state.b2, key)}
         state = replace(state, key)
+        state = %{state | b2: LRU.delete(state.b2, key)}
 
         %{state | t2: LRU.put(state.t2, key, value)}
 
@@ -119,8 +119,13 @@ defmodule ARC.Algorithm do
         l1_size == c ->
           if LRU.size(state.t1) < c do
             {{_key, _value}, b1} = LRU.pop_lru(state.b1)
+            state = %{state | b1: b1}
 
-            %{state | b1: b1}
+            if LRU.size(state.t1) + LRU.size(state.t2) >= c do
+              replace(state, key)
+            else
+              state
+            end
           else
             {{_key, _value}, t1} = LRU.pop_lru(state.t1)
 
@@ -131,8 +136,15 @@ defmodule ARC.Algorithm do
           LRU.size(state.b1) + LRU.size(state.b2) >= c ->
           if LRU.size(state.t1) + LRU.size(state.t2) +
                LRU.size(state.b1) + LRU.size(state.b2) == 2 * c do
-            {{_key, _value}, b2} = LRU.pop_lru(state.b2)
-            state = %{state | b2: b2}
+            state =
+              if LRU.size(state.b2) > 0 do
+                {{_key, _value}, b2} = LRU.pop_lru(state.b2)
+                %{state | b2: b2}
+              else
+                {{_key, _value}, b1} = LRU.pop_lru(state.b1)
+                %{state | b1: b1}
+              end
+
             replace(state, key)
           else
             replace(state, key)
