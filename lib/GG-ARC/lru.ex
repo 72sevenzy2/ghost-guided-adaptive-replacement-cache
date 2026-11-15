@@ -59,7 +59,7 @@ defmodule GGARC.LRU do
     if empty?(list) do
       :empty
     else
-      {{index, key}, order} = :gb_trees.take_smallest(list.order)
+      {index, key, order} = :gb_trees.take_smallest(list.order)
       {{value, ^index}, items} = Map.pop(list.items, key)
 
       updated = %{list | items: items, order: order}
