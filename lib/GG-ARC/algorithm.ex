@@ -1,5 +1,5 @@
 defmodule GGARC.Algorithm do
-  alias GGARC.{LRU, State, Entry, GhostEntry, Protection, CostModel}
+  alias GGARC.{LRU, Entry, Protection, CostModel}
 
   def get(state, key) do
     state = %{state | request_count: state.request_count + 1}
@@ -71,8 +71,6 @@ defmodule GGARC.Algorithm do
 
         state = replace(state, key)
         state = %{state | b2: LRU.delete(state.b2, key)}
-
-        entry = restore_entry(ghost, value, latency, memory, state)
 
         %{state | t2: LRU.put(state.t2, key, value)}
 

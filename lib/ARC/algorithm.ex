@@ -1,5 +1,5 @@
 defmodule ARC.Algorithm do
-  alias ARC.{LRU, State}
+  alias ARC.{LRU}
 
   def get(state, key) do
     cond do

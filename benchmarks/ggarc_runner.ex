@@ -3,7 +3,7 @@ defmodule GGARCRunner do
     state = GGARC.State.new(capacity)
 
     {state, hits, misses, retrieval_cost} =
-      Enum.reduce(requests, {state, 0, 0, 0}, fn key, {state, hits, misses, cost} ->
+      Enum.reduce(reqs, {state, 0, 0, 0}, fn key, {state, hits, misses, cost} ->
         case GGARC.Algorithm.get(state, key) do
           {{:ok, _entry}, state} ->
             {state, hits + 1, misses, cost}
@@ -26,7 +26,7 @@ defmodule GGARCRunner do
     %{
       hits: hits,
       misses: misses,
-      hit_ratio: hits / length(requests),
+      hit_ratio: hits / length(reqs),
       retrieval_cost_us: retrieval_cost,
       stats: GGARC.Algorithm.stats(state)
     }
