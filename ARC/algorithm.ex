@@ -32,22 +32,11 @@ defmodule ARC.Algorithm do
   def put(state, key, value) do
     cond do
       match?({:ok, _}, LRU.get(state.t1, key)) ->
-        state = %{
+        %{
           state
           | t1: LRU.delete(state.t1, key),
             t2: LRU.put(state.t2, key, value)
         }
-
-        state
-
-      match?({:ok, _}, LRU.get(state.t1, key)) ->
-        state = %{
-          state
-          | t1: LRU.delete(state.t1, key),
-            t2: LRU.put(state.t2, key, value)
-        }
-
-        state
 
       match?({:ok, _}, LRU.get(state.t2, key)) ->
         %{state | t2: LRU.put(state.t2, key, value)}
@@ -102,7 +91,7 @@ defmodule ARC.Algorithm do
   end
 
   defp replace(state, incoming_key) do
-    t1_size = LRU.get(state.t1)
+    t1_size = LRU.size(state.t1)
 
     evict_t1? =
       t1_size > 0 and
@@ -143,17 +132,17 @@ defmodule ARC.Algorithm do
           if LRU.size(state.t1) + LRU.size(state.t2) +
                LRU.size(state.b1) + LRU.size(state.b2) == 2 * c do
             {{_key, _value}, b2} = LRU.pop_lru(state.b2)
-
-            %{state | b2: b2}
+            state = %{state | b2: b2}
+            replace(state, key)
           else
-            state
+            replace(state, key)
           end
 
         true ->
           state
       end
 
-    state = replace(state, key)
+    %{state | t1: LRU.put(state.t1, key, value)}
   end
 
   def stats(state) do
