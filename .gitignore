@@ -1,0 +1,7 @@
+# mix stuff
+
+/deps/
+/_build/
+
+# erlang vm
+*.beam
