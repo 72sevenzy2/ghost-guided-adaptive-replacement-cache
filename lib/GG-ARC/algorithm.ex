@@ -72,7 +72,8 @@ defmodule GGARC.Algorithm do
         state = replace(state, key)
         state = %{state | b2: LRU.delete(state.b2, key)}
 
-        %{state | t2: LRU.put(state.t2, key, value)}
+        entry = restore_entry(ghost, value, latency, memory, state)
+        %{state | t2: LRU.put(state.t2, key, entry)}
 
       true ->
         insert_new(state, key, value, latency, memory)
