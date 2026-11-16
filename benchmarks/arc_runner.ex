@@ -19,10 +19,12 @@ defmodule ARCRunner do
         end
       end)
 
+    hit_total = hits + misses
+
     %{
       hits: hits,
       misses: misses,
-      hit_ratio: if(hits + misses == 0, do: 0.0, else: hits / hits + misses),
+      hit_ratio: if(hit_total == 0, do: 0.0, else: hits / hit_total),
       retrieval_cost_us: retrieval_cost_us,
       stats: Algorithm.stats(state)
     }

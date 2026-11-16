@@ -23,10 +23,12 @@ defmodule GGARCRunner do
         end
       end)
 
+    hit_total = hits + misses
+
     %{
       hits: hits,
       misses: misses,
-      hit_ratio: hits / length(reqs),
+      hit_ratio: if(hit_total == 0, do: 0.0, else: hits / hit_total),
       retrieval_cost_us: retrieval_cost,
       stats: GGARC.Algorithm.stats(state)
     }

@@ -221,6 +221,7 @@ defmodule GGARC.Algorithm do
 
   defp insert_new(state, key, value, latency, memory) do
     c = state.capacity
+
     l1_size = LRU.size(state.t1) + LRU.size(state.b1)
     resident_size = LRU.size(state.t1) + LRU.size(state.t2)
     total_size = resident_size + LRU.size(state.b1) + LRU.size(state.b2)
@@ -230,27 +231,31 @@ defmodule GGARC.Algorithm do
         l1_size == c ->
           if LRU.size(state.t1) < c do
             {{_key, _value}, b1} = LRU.pop_lru(state.b1)
-
-            %{state | b1: b1}
+            state = %{state | b1: b1}
+            replace(state, key)
           else
             {{_key, _value}, t1} = LRU.pop_lru(state.t1)
-
             %{state | t1: t1}
           end
 
-        l1_size < c and total_size >= c ->
-          if total_size == 2 * c do
-            {{_key, _value}, b2} = LRU.pop_lru(state.b2)
-            %{state | b2: b2}
-          else
-            state
-          end
+        total_size >= c ->
+          state =
+            if total_size == 2 * c do
+              if LRU.empty?(state.b2) do
+                state
+              else
+                {{_key, _value}, b2} = LRU.pop_lru(state.b2)
+                %{state | b2: b2}
+              end
+            else
+              state
+            end
+
+          replace(state, key)
 
         true ->
           state
       end
-
-    state = replace(state, key)
 
     entry = %Entry{
       value: value,
