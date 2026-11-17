@@ -212,17 +212,6 @@ defmodule GGARC.Algorithm do
     end
   end
 
-  #
-  # defp select_victim(_state, list, _weights) do
-  #   case LRU.pop_lru(list) do
-  #     {{key, entry}, _updated_list} ->
-  #       {key, entry}
-  #
-  #     :empty ->
-  #       raise "GG-ARC invariant violation: attempted to evict from an empty list"
-  #   end
-  # end
-
   defp select_victim(state, list, weights) do
     list
     |> LRU.oldest_entries(32)
@@ -237,21 +226,6 @@ defmodule GGARC.Algorithm do
       CostModel.score(entry, weights, state, protection)
     end)
   end
-
-  # defp select_victim(state, list, weights) do
-  #   list
-  #   |> LRU.entries()
-  #   |> Enum.min_by(fn {_key, entry} ->
-  #     protection =
-  #       GGARC.Protection.effective(
-  #         entry,
-  #         state.request_count,
-  #         state.protection_half_life
-  #       )
-  #
-  #     GGARC.CostModel.score(entry, weights, state, protection)
-  #   end)
-  # end
 
   defp insert_new(state, key, value, latency, memory) do
     c = state.capacity
