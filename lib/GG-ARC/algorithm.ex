@@ -4,30 +4,33 @@ defmodule GGARC.Algorithm do
   def get(state, key) do
     state = %{state | request_count: state.request_count + 1}
 
-    cond do
-      match?({:ok, _}, LRU.get(state.t1, key)) ->
-        {:ok, value} = LRU.get(state.t1, key)
+    case LRU.get(state.t1, key) do
+      {:ok, entry} ->
+        entry = Protection.reinforce(entry, state)
 
         state = %{
           state
           | t1: LRU.delete(state.t1, key),
-            t2: LRU.put(state.t2, key, value)
+            t2: LRU.put(state.t2, key, entry)
         }
 
-        {{:ok, value}, state}
+        {{:ok, entry.value}, state}
 
-      match?({:ok, _}, LRU.get(state.t2, key)) ->
-        {:ok, value} = LRU.get(state.t2, key)
+      :miss ->
+        case LRU.get(state.t2, key) do
+          {:ok, entry} ->
+            entry = Protection.reinforce(entry, state)
 
-        state = %{
-          state
-          | t2: LRU.put(state.t2, key, value)
-        }
+            state = %{
+              state
+              | t2: LRU.put(state.t2, key, entry)
+            }
 
-        {{:ok, value}, state}
+            {{:ok, entry.value}, state}
 
-      true ->
-        {:miss, state}
+          :miss ->
+            {:miss, state}
+        end
     end
   end
 
@@ -55,9 +58,11 @@ defmodule GGARC.Algorithm do
         {:ok, ghost} = LRU.get(state.b1, key)
 
         state = adjust_parameter_up(state, state.b1, state.b2)
-        state = %{state | b1: LRU.delete(state.b1, key)}
+        state = %{state | b1_hits: state.b1_hits + 1}
+        state = adapt_weights(state, ghost, :t1)
 
         state = replace(state, key)
+        state = %{state | b1: LRU.delete(state.b1, key)}
 
         entry = restore_entry(ghost, value, latency, memory, state)
 
@@ -67,6 +72,7 @@ defmodule GGARC.Algorithm do
         {:ok, ghost} = LRU.get(state.b2, key)
 
         state = adjust_parameter_down(state, state.b1, state.b2)
+        state = %{state | b2_hits: state.b2_hits + 1}
         state = adapt_weights(state, ghost, :t2)
 
         state = replace(state, key)
@@ -179,11 +185,12 @@ defmodule GGARC.Algorithm do
       %{
         state
         | t1: LRU.delete(state.t1, key),
-          b1: LRU.put(state.b1, key, ghost)
+          b1: LRU.put(state.b1, key, ghost),
+          t1_evictions: state.t1_evictions + 1
       }
     else
       if LRU.empty?(state.t2) do
-        state
+        raise "GG-ARC invariant violation: T2 selected for replacement but is empty"
       else
         {key, entry} = select_victim(state, state.t2, state.w2)
 
@@ -198,27 +205,38 @@ defmodule GGARC.Algorithm do
         %{
           state
           | t2: LRU.delete(state.t2, key),
-            b2: LRU.put(state.t2, key, ghost)
+            b2: LRU.put(state.b2, key, ghost),
+            t2_evictions: state.t2_evictions + 1
         }
       end
     end
   end
 
-  defp select_victim(state, list, weights) do
-    list
-    |> LRU.entries()
-    |> Enum.min_by(fn {_key, entry} ->
-      protection =
-        GGARC.Protection.effective(
-          entry,
-          state.request_count,
-          state.protection_half_life
-        )
+  defp select_victim(_state, list, _weights) do
+    case LRU.pop_lru(list) do
+      {{key, entry}, _updated_list} ->
+        {key, entry}
 
-      GGARC.CostModel.score(entry, weights, state, protection)
-    end)
+      :empty ->
+        raise "GG-ARC invariant violation: attempted to evict from an empty list"
+    end
   end
 
+  # defp select_victim(state, list, weights) do
+  #   list
+  #   |> LRU.entries()
+  #   |> Enum.min_by(fn {_key, entry} ->
+  #     protection =
+  #       GGARC.Protection.effective(
+  #         entry,
+  #         state.request_count,
+  #         state.protection_half_life
+  #       )
+  #
+  #     GGARC.CostModel.score(entry, weights, state, protection)
+  #   end)
+  # end
+  #
   defp insert_new(state, key, value, latency, memory) do
     c = state.capacity
 
@@ -232,7 +250,12 @@ defmodule GGARC.Algorithm do
           if LRU.size(state.t1) < c do
             {{_key, _value}, b1} = LRU.pop_lru(state.b1)
             state = %{state | b1: b1}
-            replace(state, key)
+
+            if LRU.size(state.t1) + LRU.size(state.t2) >= c do
+              replace(state, key)
+            else
+              state
+            end
           else
             {{_key, _value}, t1} = LRU.pop_lru(state.t1)
             %{state | t1: t1}
@@ -242,7 +265,8 @@ defmodule GGARC.Algorithm do
           state =
             if total_size == 2 * c do
               if LRU.empty?(state.b2) do
-                state
+                {{_key, _value}, b1} = LRU.pop_lru(state.b1)
+                %{state | b1: b1}
               else
                 {{_key, _value}, b2} = LRU.pop_lru(state.b2)
                 %{state | b2: b2}
@@ -276,7 +300,11 @@ defmodule GGARC.Algorithm do
       t2: LRU.size(state.t2),
       b1: LRU.size(state.b1),
       b2: LRU.size(state.b2),
-      resident: LRU.size(state.t1) + LRU.size(state.t2)
+      resident: LRU.size(state.t1) + LRU.size(state.t2),
+      b1_hits: state.b1_hits,
+      b2_hits: state.b2_hits,
+      t1_evictions: state.t1_evictions,
+      t2_evictions: state.t2_evictions
     }
   end
 end

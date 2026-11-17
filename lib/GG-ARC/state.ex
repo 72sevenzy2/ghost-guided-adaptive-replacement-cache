@@ -13,7 +13,11 @@ defmodule GGARC.State do
             eta: 0.05,
             protection_delta: 0.025,
             protection_max: 0.1,
-            protection_half_life: 1000
+            protection_half_life: 1000,
+            b1_hits: 0,
+            b2_hits: 0,
+            t1_evictions: 0,
+            t2_evictions: 0
 
   def new(capacity) when is_integer(capacity) and capacity > 0 do
     %__MODULE__{capacity: capacity}
