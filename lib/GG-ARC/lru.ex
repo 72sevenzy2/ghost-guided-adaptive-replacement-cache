@@ -71,4 +71,33 @@ defmodule GGARC.LRU do
   def keys(%__MODULE__{items: items}) do
     Map.keys(items)
   end
+
+  def oldest_entries(%__MODULE__{} = list, limit)
+      when is_integer(limit) and limit > 0 do
+    list.order
+    |> :gb_trees.iterator()
+    |> collect_oldest(list.items, limit, [])
+  end
+
+  defp collect_oldest(iterator, items, remaining, acc)
+       when remaining > 0 do
+    case :gb_trees.next(iterator) do
+      :none ->
+        Enum.reverse(acc)
+
+      {index, key, next_iterator} ->
+        {value, ^index} = Map.fetch!(items, key)
+
+        collect_oldest(
+          next_iterator,
+          items,
+          remaining - 1,
+          [{key, value} | acc]
+        )
+    end
+  end
+
+  defp collect_oldest(_iterator, _items, 0, acc) do
+    Enum.reverse(acc)
+  end
 end
