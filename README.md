@@ -8,4 +8,4 @@ Lets say you have an ARC cache in your backend, and it experiences an *cache mis
 And such, when an cache data is promoted from *B2/B1* to *T2/T1* then it also influences *p's* decrease/increase, eg. if an element is promoted from *B2* to *T2*, then *p* is decreased inorder to allocate more space for *T2*, this is because *T1* and *T2* both have target allocations, lets say *T1's* target allocation is 70 and *T2's* is 30, if *p* is increased then it would allocate more space to *T1*, and if *p* were to decrease, then it would allocate more to *T2* . However, eviction is also influenced from either LRU's *ghost* LRU hit, ie. if *B1* were to experience an *ghost* hit then the ARC cache would increase *p* to favor *T1* more in allocation size, and evict from *T2* instead, this is due to if *B1* were to experience a *ghost* hit then it is most likely that *T1* may include cache data that may be fetched more so than *T2*.
 
 
-<h2 align="center">more on GG-ARC: https://zenodo.org/records/24438949/preview/GG_ARC.pdf?include_deleted=0</h2>
+<h2 align="center">more on GG-ARC: https://zenodo.org/records/24438949?preview_file=GG_ARC+(3).pdf</h2>
